@@ -60,7 +60,7 @@ export default function HomeScreen() {
 
     // ⚠️ use your LOCAL IP, not localhost
     const response = await axios.post(
-      "http://192.168.1.172:3000/predict",
+      "https://food-scan.onrender.com/predict",
       formData,
       {
         headers: {
