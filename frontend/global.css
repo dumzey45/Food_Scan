@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+
+.lin{
+    color:rgb(1, 1, 92)
+}
