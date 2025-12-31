@@ -1,97 +1,102 @@
 const express = require("express");
-const tf = require("@tensorflow/tfjs");
-const multer = require("multer");
 const cors = require("cors");
-<<<<<<< HEAD
-const jpeg = require("jpeg-js"); // ← NEW
-=======
-const jpeg = require("jpeg-js"); // For decoding JPEG
->>>>>>> e62cfc2320d76388cb17508a2beb213520759434
+const multer = require("multer");
+const jpeg = require("jpeg-js");
+const tf = require("@tensorflow/tfjs"); // ✅ PURE JS VERSION
 
 const app = express();
 
-const upload = multer({ storage: multer.memoryStorage() });
+/* =======================
+   MIDDLEWARE
+======================= */
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+  })
+);
+app.use(express.json({ limit: "10mb" }));
 
-app.use(cors());
-app.use(express.json());
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
-let model;
+/* =======================
+   LOAD MODEL
+======================= */
+let model = null;
 
 (async () => {
   try {
-    console.log("Loading model...");
+    console.log("⏳ Loading model...");
     model = await tf.loadGraphModel(
       "https://cdn.jsdelivr.net/gh/dumzey45/food-scan-model@main/model.json"
     );
-    console.log("Model loaded successfully!");
+    console.log("✅ Model loaded");
   } catch (err) {
-    console.error("Model load failed:", err);
+    console.error("❌ Model load failed:", err);
   }
 })();
+
+/* =======================
+   ROUTES
+======================= */
+
+app.get("/", (req, res) => {
+  res.status(200).send("Food Scan backend is LIVE 🚀");
+});
 
 app.post("/predict", upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: "No image sent" });
+      return res.status(400).json({ error: "No image uploaded" });
     }
 
     if (!model) {
-      return res.status(500).json({ error: "Model not loaded" });
+      return res.status(503).json({ error: "Model still loading" });
     }
 
-<<<<<<< HEAD
-    // Decode JPEG with jpeg-js (pure JS, no native deps)
-    const jpegData = jpeg.decode(req.file.buffer, { useTArray: true });
+    const decoded = jpeg.decode(req.file.buffer, true);
 
-    const imgTensor = tf.tidy(() => {
-      const tensor = tf.tensor3d(jpegData.data, [jpegData.height, jpegData.width, 3], "int32");
-=======
-    // Decode JPEG using jpeg-js (pure JS, no native deps)
-    const jpegData = jpeg.decode(req.file.buffer, { useTArray: true });
+    const inputTensor = tf.tidy(() => {
+      const { data, width, height } = decoded;
 
-    const imgTensor = tf.tidy(() => {
-      const tensor = tf.tensor3d(
-        jpegData.data,
-        [jpegData.height, jpegData.width, 3],
-        "int32"
-      );
->>>>>>> e62cfc2320d76388cb17508a2beb213520759434
-      return tensor
+      // RGBA → RGB
+      const rgb = new Uint8Array(width * height * 3);
+      for (let i = 0, j = 0; i < data.length; i += 4) {
+        rgb[j++] = data[i];
+        rgb[j++] = data[i + 1];
+        rgb[j++] = data[i + 2];
+      }
+
+      return tf
+        .tensor3d(rgb, [height, width, 3])
         .resizeNearestNeighbor([224, 224])
         .toFloat()
-        .div(255.0)
-        .expandDims();
+        .div(255)
+        .expandDims(0);
     });
 
-    const prediction = model.predict(imgTensor);
+    const prediction = model.predict(inputTensor);
     const score = (await prediction.data())[0];
 
-    tf.dispose([imgTensor, prediction]);
+    tf.dispose([inputTensor, prediction]);
 
     res.json({
       label: score >= 0.6 ? "Fresh" : "Rotten",
       confidence: Math.round(score * 100),
     });
   } catch (err) {
-    console.error("Prediction error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("❌ Prediction error:", err);
+    res.status(500).json({ error: "Prediction failed" });
   }
 });
 
-// Health check
-app.get("/", (req, res) => {
-<<<<<<< HEAD
-  res.send("Food Scanner backend running! POST to /predict");
-=======
-  res.send("Food Scanner backend running! POST image to /predict");
->>>>>>> e62cfc2320d76388cb17508a2beb213520759434
+/* =======================
+   START SERVER
+======================= */
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
-
-const port = process.env.PORT || 3000;
-app.listen(port, "0.0.0.0", () => {
-  console.log(`Server running on port ${port}`);
-<<<<<<< HEAD
-});
-=======
-});
->>>>>>> e62cfc2320d76388cb17508a2beb213520759434
