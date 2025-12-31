@@ -2,20 +2,17 @@ const express = require("express");
 const tf = require("@tensorflow/tfjs");
 const multer = require("multer");
 const cors = require("cors");
+const jpeg = require("jpeg-js"); // For decoding JPEG
 
 const app = express();
 
-// MEMORY ONLY upload
-const upload = multer({
-  storage: multer.memoryStorage(),
-});
+const upload = multer({ storage: multer.memoryStorage() });
 
 app.use(cors());
 app.use(express.json());
 
 let model;
 
-// Load model once at startup
 (async () => {
   try {
     console.log("Loading model...");
@@ -24,7 +21,7 @@ let model;
     );
     console.log("Model loaded successfully!");
   } catch (err) {
-    console.error("Failed to load model:", err);
+    console.error("Model load failed:", err);
   }
 })();
 
@@ -35,15 +32,24 @@ app.post("/predict", upload.single("image"), async (req, res) => {
     }
 
     if (!model) {
-      return res.status(500).json({ error: "Model not loaded yet" });
+      return res.status(500).json({ error: "Model not loaded" });
     }
 
-    // Convert buffer directly to tensor (no sharp needed)
-    const imgTensor = tf.node.decodeImage(req.file.buffer, 3) // 3 channels (RGB)
-      .resizeNearestNeighbor([224, 224])
-      .toFloat()
-      .div(255.0)
-      .expandDims();
+    // Decode JPEG using jpeg-js (pure JS, no native deps)
+    const jpegData = jpeg.decode(req.file.buffer, { useTArray: true });
+
+    const imgTensor = tf.tidy(() => {
+      const tensor = tf.tensor3d(
+        jpegData.data,
+        [jpegData.height, jpegData.width, 3],
+        "int32"
+      );
+      return tensor
+        .resizeNearestNeighbor([224, 224])
+        .toFloat()
+        .div(255.0)
+        .expandDims();
+    });
 
     const prediction = model.predict(imgTensor);
     const score = (await prediction.data())[0];
@@ -56,13 +62,13 @@ app.post("/predict", upload.single("image"), async (req, res) => {
     });
   } catch (err) {
     console.error("Prediction error:", err);
-    res.status(500).json({ error: "Prediction failed" });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Health check route
+// Health check
 app.get("/", (req, res) => {
-  res.send("Food Scanner backend is running! POST image to /predict");
+  res.send("Food Scanner backend running! POST image to /predict");
 });
 
 const port = process.env.PORT || 3000;
