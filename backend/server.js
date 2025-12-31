@@ -2,7 +2,11 @@ const express = require("express");
 const tf = require("@tensorflow/tfjs");
 const multer = require("multer");
 const cors = require("cors");
+<<<<<<< HEAD
 const jpeg = require("jpeg-js"); // ← NEW
+=======
+const jpeg = require("jpeg-js"); // For decoding JPEG
+>>>>>>> e62cfc2320d76388cb17508a2beb213520759434
 
 const app = express();
 
@@ -35,11 +39,23 @@ app.post("/predict", upload.single("image"), async (req, res) => {
       return res.status(500).json({ error: "Model not loaded" });
     }
 
+<<<<<<< HEAD
     // Decode JPEG with jpeg-js (pure JS, no native deps)
     const jpegData = jpeg.decode(req.file.buffer, { useTArray: true });
 
     const imgTensor = tf.tidy(() => {
       const tensor = tf.tensor3d(jpegData.data, [jpegData.height, jpegData.width, 3], "int32");
+=======
+    // Decode JPEG using jpeg-js (pure JS, no native deps)
+    const jpegData = jpeg.decode(req.file.buffer, { useTArray: true });
+
+    const imgTensor = tf.tidy(() => {
+      const tensor = tf.tensor3d(
+        jpegData.data,
+        [jpegData.height, jpegData.width, 3],
+        "int32"
+      );
+>>>>>>> e62cfc2320d76388cb17508a2beb213520759434
       return tensor
         .resizeNearestNeighbor([224, 224])
         .toFloat()
@@ -64,10 +80,18 @@ app.post("/predict", upload.single("image"), async (req, res) => {
 
 // Health check
 app.get("/", (req, res) => {
+<<<<<<< HEAD
   res.send("Food Scanner backend running! POST to /predict");
+=======
+  res.send("Food Scanner backend running! POST image to /predict");
+>>>>>>> e62cfc2320d76388cb17508a2beb213520759434
 });
 
 const port = process.env.PORT || 3000;
 app.listen(port, "0.0.0.0", () => {
   console.log(`Server running on port ${port}`);
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> e62cfc2320d76388cb17508a2beb213520759434
