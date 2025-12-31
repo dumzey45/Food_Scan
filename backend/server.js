@@ -2,7 +2,7 @@ const express = require("express");
 const tf = require("@tensorflow/tfjs");
 const multer = require("multer");
 const cors = require("cors");
-const jpeg = require("jpeg-js"); // For decoding JPEG
+const jpeg = require("jpeg-js"); // ← For pure JS JPEG decoding
 
 const app = express();
 
@@ -13,6 +13,7 @@ app.use(express.json());
 
 let model;
 
+// Load model at startup
 (async () => {
   try {
     console.log("Loading model...");
@@ -35,15 +36,11 @@ app.post("/predict", upload.single("image"), async (req, res) => {
       return res.status(500).json({ error: "Model not loaded" });
     }
 
-    // Decode JPEG using jpeg-js (pure JS, no native deps)
+    // Decode JPEG with jpeg-js (pure JS, works on Render)
     const jpegData = jpeg.decode(req.file.buffer, { useTArray: true });
 
     const imgTensor = tf.tidy(() => {
-      const tensor = tf.tensor3d(
-        jpegData.data,
-        [jpegData.height, jpegData.width, 3],
-        "int32"
-      );
+      const tensor = tf.tensor3d(jpegData.data, [jpegData.height, jpegData.width, 3], "int32");
       return tensor
         .resizeNearestNeighbor([224, 224])
         .toFloat()
@@ -62,13 +59,13 @@ app.post("/predict", upload.single("image"), async (req, res) => {
     });
   } catch (err) {
     console.error("Prediction error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Internal server error", details: err.message });
   }
 });
 
-// Health check
+// Health check route
 app.get("/", (req, res) => {
-  res.send("Food Scanner backend running! POST image to /predict");
+  res.send("Food Scanner backend is running! POST image to /predict");
 });
 
 const port = process.env.PORT || 3000;
