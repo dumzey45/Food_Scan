@@ -2,7 +2,6 @@ const express = require("express");
 const tf = require("@tensorflow/tfjs");
 const multer = require("multer");
 const cors = require("cors");
-const sharp = require("sharp");
 
 const app = express();
 
@@ -16,11 +15,17 @@ app.use(express.json());
 
 let model;
 
-// Load model once
+// Load model once at startup
 (async () => {
-  console.log("Loading model...");
-  model = await tf.loadGraphModel("https://cdn.jsdelivr.net/gh/dumzey45/food-scan-model@main/model.json");
-  console.log("Model loaded!");
+  try {
+    console.log("Loading model...");
+    model = await tf.loadGraphModel(
+      "https://cdn.jsdelivr.net/gh/dumzey45/food-scan-model@main/model.json"
+    );
+    console.log("Model loaded successfully!");
+  } catch (err) {
+    console.error("Failed to load model:", err);
+  }
 })();
 
 app.post("/predict", upload.single("image"), async (req, res) => {
@@ -29,17 +34,16 @@ app.post("/predict", upload.single("image"), async (req, res) => {
       return res.status(400).json({ error: "No image sent" });
     }
 
-    // Image is already in RAM
-    const { data, info } = await sharp(req.file.buffer)
-      .resize(224, 224)
-      .removeAlpha()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
+    if (!model) {
+      return res.status(500).json({ error: "Model not loaded yet" });
+    }
 
-    const imgTensor = tf
-      .tensor(new Uint8Array(data), [1, info.height, info.width, 3])
+    // Convert buffer directly to tensor (no sharp needed)
+    const imgTensor = tf.node.decodeImage(req.file.buffer, 3) // 3 channels (RGB)
+      .resizeNearestNeighbor([224, 224])
       .toFloat()
-      .div(255.0);
+      .div(255.0)
+      .expandDims();
 
     const prediction = model.predict(imgTensor);
     const score = (await prediction.data())[0];
@@ -51,9 +55,17 @@ app.post("/predict", upload.single("image"), async (req, res) => {
       confidence: Math.round(score * 100),
     });
   } catch (err) {
-    console.error(err);
+    console.error("Prediction error:", err);
     res.status(500).json({ error: "Prediction failed" });
   }
 });
 
-app.listen(3000, () => console.log("Server running on http://localhost:3000"));
+// Health check route
+app.get("/", (req, res) => {
+  res.send("Food Scanner backend is running! POST image to /predict");
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server running on port ${port}`);
+});
